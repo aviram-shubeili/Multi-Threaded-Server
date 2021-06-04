@@ -1,37 +1,133 @@
 #include "segel.h"
 #include "request.h"
+#define SCHED_ALG_BLOCK 0
+#define SCHED_ALG_DROP_TAIL 1
+#define SCHED_ALG_DROP_HEAD 2
+#define SCHED_ALG_RANDOM 3
+
+
+/*
+ * ***********************************
+ *          Queue implementaion
+ * ***********************************
+ */
+typedef struct Queue {
+    int capacity;
+    int size;
+    int head;
+    int tail;
+    int* elements;
+    pthread_mutex_t* m;
+    pthread_cond_t* empty;
+    pthread_cond_t* full;
+} Queue;
+
+int isFull(Queue* q) {
+    return q->capacity == q->size;
+}
+int isEmpty(Queue* q) {
+    return q->size == 0;
+}
+Queue* initQueue(int capacity, pthread_cond_t* empty, pthread_cond_t* full, pthread_mutex_t* m) {
+    Queue* q = malloc(sizeof(struct Queue));
+    q->capacity = capacity;
+    q->size = 0;
+    q->head = 0;    // this field will be updated cyclic in dequeue.
+    q-> tail = capacity-1; // this field will be updated cyclic in enqueue.
+    q->elements = malloc(capacity * sizeof(int));
+    q->m = m;
+    q->empty = empty;
+    q->full = full;
+}
+int dequeue(Queue* q) {
+    pthread_mutex_lock(q->m);
+    while(isEmpty(q)) {
+        pthread_cond_wait(q->empty, q->m);
+    }
+    // removing from head of queue
+    int element = q->elements[q->head];
+    q->head = (q->head + 1) % q->capacity;
+    q->size--;
+    pthread_cond_signal(q->full);
+    pthread_mutex_unlock(q->m);
+    return element;
+}
+void enqueue(Queue* q, int element) {
+    pthread_mutex_lock(q->m);
+    while(isFull(q)) {
+        pthread_cond_wait(q->full, q->m);
+    }
+    // Adding to tail of the queue
+    q->tail = (q->tail + 1) % q->capacity;
+    q->elements[q->tail] = element;
+    q->size++;
+    pthread_cond_signal(q->empty);
+    pthread_mutex_unlock(q->m);
+}
+
+void destroyQueue(Queue* q) {
+    free(q->elements);
+    free(q);
+}
+
+
 
 // 
 // server.c: A very, very simple web server
 //
 // To run:
-//  ./server <portnum (above 2000)>
+//  ./server [portnum (above 2000)] [threads] [queue_size] [schedalg]
 //
 // Repeatedly handles HTTP requests sent to this port number.
 // Most of the work is done within routines written in request.c
 //
 
 // HW3: Parse the new arguments too
-void getargs(int *port, int argc, char *argv[])
+void getargs(int argc, char *argv[], int *port, int *num_of_threads, int *queue_size, int *schedalg)
 {
-    if (argc < 2) {
-	fprintf(stderr, "Usage: %s <port>\n", argv[0]);
+    if (argc < 5) {
+	fprintf(stderr, "Usage: %s [portnum] [threads] [queue_size] [schedalg]\n", argv[0]);
 	exit(1);
     }
     *port = atoi(argv[1]);
+    *num_of_threads = atoi(argv[2]);
+    *queue_size = atoi(argv[3]);
+
+    if(strcmp("block",argv[4]) == 0) {
+        *schedalg = SCHED_ALG_BLOCK;
+    }
+    else if(strcmp("dt",argv[4]) == 0) {
+        *schedalg = SCHED_ALG_DROP_TAIL;
+    }
+    else if(strcmp("dh",argv[4]) == 0) {
+        *schedalg = SCHED_ALG_DROP_HEAD;
+    }
+    else if(strcmp("random",argv[4]) == 0) {
+        *schedalg = SCHED_ALG_RANDOM;
+    }
 }
 
 
 int main(int argc, char *argv[])
 {
-    int listenfd, connfd, port, clientlen;
+    int listenfd, connfd, port, clientlen, num_of_threads, queue_size, schedalg;
     struct sockaddr_in clientaddr;
 
-    getargs(&port, argc, argv);
+    getargs(argc, argv, &port, &num_of_threads, &queue_size, &schedalg);
+    pthread_cond_t empty, full;
+
+    //initializing condition variables --> this will allways succeed
+    pthread_cond_init( &empty, NULL);
+    pthread_cond_init( &full, NULL);
+
 
     // 
     // HW3: Create some threads...
     //
+    pthread_t worker_thread[num_of_threads];
+    for (int i = 0; i < num_of_threads; ++i) {
+        pthread_create(worker_thread[i],NULL, /* todo some function maybe deequeue? */ , i /* todo maybe change this? */ );
+    }
 
     listenfd = Open_listenfd(port);
     while (1) {
