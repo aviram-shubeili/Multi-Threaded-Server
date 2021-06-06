@@ -31,14 +31,22 @@ int isEmpty(Queue* q) {
 }
 Queue* initQueue(int capacity, pthread_cond_t* empty, pthread_cond_t* full, pthread_mutex_t* m) {
     Queue* q = malloc(sizeof(struct Queue));
+    if(q == NULL) {
+        unix_error("Malloc error");
+    }
     q->capacity = capacity;
     q->size = 0;
     q->head = 0;    // this field will be updated cyclic in dequeue.
     q-> tail = capacity-1; // this field will be updated cyclic in enqueue.
     q->elements = malloc(capacity * sizeof(int));
+    if(q->elements == NULL) {
+        unix_error("Malloc error");
+    }
     q->m = m;
     q->empty = empty;
     q->full = full;
+
+    return q;
 }
 int dequeue(Queue* q) {
     pthread_mutex_lock(q->m);
@@ -55,7 +63,7 @@ int dequeue(Queue* q) {
 }
 void enqueue(Queue* q, int element) {
     pthread_mutex_lock(q->m);
-    while(isFull(q)) {
+    while(isFull(q) /* TODO: add a second check to see if the sum of q.size and currently executed equals the limit (maybe dont do it here)*/ ) {
         pthread_cond_wait(q->full, q->m);
     }
     // Adding to tail of the queue
@@ -106,6 +114,10 @@ void getargs(int argc, char *argv[], int *port, int *num_of_threads, int *queue_
     else if(strcmp("random",argv[4]) == 0) {
         *schedalg = SCHED_ALG_RANDOM;
     }
+    else {
+        fprintf(stderr, "[schedalg] %s is unrecognized. please use: block, dt, dh or random\n", argv[4]);
+        exit(1);
+    }
 }
 // some global variables
 pthread_cond_t empty_g, full_g;
@@ -118,6 +130,7 @@ void* handleRequests(void* thread_id /* NOTE: this will be used mainly for secti
     //      there is usage in condition variables in dequeue
     while(1) {
         int fd = dequeue(requests_queue);
+
         // TODO: add a list (or maybe queue) for requests currently being processed (Page 6 Hint No.1 in manual)
         requestHandle(fd);
         Close(fd);
@@ -134,16 +147,19 @@ int main(int argc, char *argv[])
     //initializing condition variables --> this will allways succeed
     pthread_cond_init( &empty_g, NULL);
     pthread_cond_init( &full_g, NULL);
+    int mutex_res = pthread_mutex_init(&global_lock, NULL);
+    if(mutex_res != 0) {
+        unix_error("Mutex error");
+    }
+    requests_queue = initQueue(queue_size, &empty_g, &full_g, &global_lock);
 
-
-    // 
+    //
     // HW3: Create some threads...
     //
     pthread_t worker_thread[num_of_threads];
     for (int i = 0; i < num_of_threads; ++i) {
-        pthread_create(worker_thread[i],NULL,handleRequests , &i );
+        pthread_create(&worker_thread[i],NULL,handleRequests , &i );
     }
-    requests_queue = initQueue(queue_size, &empty_g, &full_g, &global_lock);
 
     listenfd = Open_listenfd(port);
     while (1) {
