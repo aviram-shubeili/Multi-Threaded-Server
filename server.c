@@ -34,7 +34,7 @@ List *initList();
 Request *popHead(List* list);
 Request *popTail(List* list); // TODO needed?
 Request *popIndex(List* list, int index);
-void addNode(List* list, Request* req);
+void addNodeToTail(List* list, Request* req);
 void destroyList();
 
 List *initList(){
@@ -44,58 +44,74 @@ List *initList(){
     return list;
 }
 
-Request *popHead(List* list){ //TODO when do we kill the head?
-    Node *head = list->head;
-    if (!head) { return NULL; }
-    else if (head == list->tail){
-        Request* req = head->data;
+Request *popHead(List* list){ //TODO when do we kill the node?
+    Node *node = list->head;
+    // empty list
+    if (!node) { return NULL; }
+    // only one item
+    else if (node == list->tail){
+        Request* req = node->data;
         list->head = NULL;
         list->tail = NULL;
-        free(head); //TODO needed here?
+        free(node); //TODO needed here??
         return req;
     }
     else{
-        Request* req = head->data;
-        list->head = head->next;
-        free(head); //TODO needed here?
+        Request* req = node->data;
+        list->head = node->next;
+        list->head->prev = NULL;
+        free(node); //TODO needed here?
         return req;
     }
 }
 
 Request *popIndex(List* list, int index){
+    // list is empty
+    if(list->head == NULL) {
+        return NULL;
+    }
     Node* node = list->head;
     while (node){
-        node = node->next;
-        index--;
-        if (!index){
+        if (index == 0){
             Request* req = node->data;
+            // taking care of prev (or head)
             if (node->prev) { node->prev->next = node->next; }
+            else { list->head = node->next; }
+
+            // taking care of next (or tail)
             if (node->next) { node->next->prev = node->prev; }
+            else { list->tail = node->prev; }
+
             free (node); //TODO needed here?
             return req;
         }
+        node = node->next;
+        index--;
     }
-    return NULL; //will happen only if index > queue size. should be handled by the caller
+    // should never get here!
+    unix_error("Unexpected popIndex List Error");
+    return NULL;
 }
 
-void addNode(List* list, Request* req){
+void addNodeToTail(List* list, Request* req){
     Node* node = malloc(sizeof(Node));
     node->data = req;
 
-    if (!list->head){
+    // list is empty
+    if (list->head == NULL){
         list->head = node;
         list->tail = node;
         node->prev = NULL;
         node->next = NULL;
     }
-
+        // one item in list
     else if (list->head == list->tail){
         node->prev = list->head;
+        list->head->next = node;
         node->next = NULL;
         list->tail = node;
-        list->head->next = node;
     }
-
+        // more than one in list
     else{
         list->tail->next = node;
         node->prev = list->tail;
@@ -114,9 +130,10 @@ void addNode(List* list, Request* req){
 typedef struct Queue {
     int capacity;
     int size;
-    int head;
-    int tail;
-    Request** elements; // array of ptrs
+    int head;    // TODO delete me
+    int tail;    // TODO delete me
+    List* element_list;
+    Request** elements; // array of ptrs    // TODO delete me
     pthread_mutex_t* m;
     pthread_cond_t* empty;
     pthread_cond_t* full;
@@ -130,10 +147,10 @@ Request* dequeue(Queue* q);
 void enqueue(Queue* q, Request* precentage);
 void destroyQueue(Queue* q);
 void randomCuts(Queue* q, int precentage);
-
 void stupidCopyQueue(Queue *dest, Queue *src);
-
 void randomRemove(Queue *q);
+
+
 
 // some global variables
 pthread_cond_t empty_g, full_g;
@@ -155,16 +172,23 @@ int isEmpty(Queue* q) {
 
 
 Queue *initQueue(int capacity, pthread_cond_t *empty, pthread_cond_t *full, pthread_mutex_t *m, int overload_policy) {
+
     Queue* q = malloc(sizeof(struct Queue));
     if(q == NULL) {
         unix_error("Malloc error");
     }
+
+    q->element_list = initList();
+    if(q->element_list == NULL) {
+        unix_error("Malloc error");
+    }
+
     q->capacity = capacity;
     q->size = 0;
-    q->head = 0;    // this field will be updated cyclic in dequeue.
-    q->tail = capacity-1; // this field will be updated cyclic in enqueue.
+    q->head = 0;    // this field will be updated cyclic in dequeue.    // TODO delete me
+    q->tail = capacity-1; // this field will be updated cyclic in enqueue.    // TODO delete me
 
-    // allocating the pointers array
+    // allocating the pointers array // TODO delete me
     q->elements = malloc(capacity * sizeof(Request*));
     if(q->elements == NULL) {
         unix_error("Malloc error");
@@ -177,14 +201,19 @@ Queue *initQueue(int capacity, pthread_cond_t *empty, pthread_cond_t *full, pthr
     return q;
 }
 Request* dequeue(Queue* q) {
+
     pthread_mutex_lock(q->m);
     while(isEmpty(q)) {
         pthread_cond_wait(q->empty, q->m);
     }
+
     // removing from head of queue
-    Request* element = q->elements[q->head];
+    // Request* element = q->elements[q->head];     // TODO delete me
+    Request* element = popHead(q->element_list);
+/*
     q->elements[q->head] = NULL;
     q->head = (q->head + 1) % q->capacity;
+    */     // TODO delete me
     q->size--;
     pthread_cond_signal(q->full);
     pthread_mutex_unlock(q->m);
@@ -194,16 +223,8 @@ Request* dequeue(Queue* q) {
 void enqueue(Queue* q, Request* element) {
     pthread_mutex_lock(q->m);
 
-//    // TODO this is for debugging
-//    char buf1[MAXBUF];
-//    char buf2[MAXBUF];
-
     while(isFull(q) ||
           ((q->size + active_requests) == q->capacity) ) {
-
-//        // TODO this is for debugging
-//        sprintf(buf1,"***************** request num: %d is in overload handling *****************\r\n\r\n", request_index);
-//        Rio_writen(element,buf1,strlen(buf1));
 
         if(q->overload_policy == SCHED_ALG_BLOCK) {
             pthread_cond_wait(q->full, q->m);
@@ -222,9 +243,12 @@ void enqueue(Queue* q, Request* element) {
                 return;
             }
             else { // drop head and continue with current request
-                Request* oldest_request = q->elements[q->head];
+//                Request* oldest_request = q->elements[q->head];     // TODO delete me
+                /*
                 q->elements[q->head] = NULL;
                 q->head = (q->head + 1) % q->capacity;
+                 */     // TODO delete me
+                Request* oldest_request = popHead(q->element_list);
                 q->size--;
                 Close(oldest_request->fd);
                 free(oldest_request); // TODO should i?
@@ -239,7 +263,6 @@ void enqueue(Queue* q, Request* element) {
             }
             else {
                 randomCuts(q,25);
-
             }
         }
         else {
@@ -249,8 +272,11 @@ void enqueue(Queue* q, Request* element) {
     }
 
     // Adding to tail of the queue
+    /*
     q->tail = (q->tail + 1) % q->capacity;
     q->elements[q->tail] = element;
+     */
+    addNodeToTail(q->element_list,element);
     q->size++;
     pthread_cond_signal(q->empty);
     pthread_mutex_unlock(q->m);
@@ -259,7 +285,7 @@ void enqueue(Queue* q, Request* element) {
 
 // this is never used TODO: Maybe add aa SIGINT handler ?
 void destroyQueue(Queue* q) {
-    free(q->elements);
+//    free(q->elements); TODO delete me and maybe free element_list?
     free(q);
 }
 
@@ -274,6 +300,11 @@ void randomCuts(Queue* q, int precentage) {
         ++num_of_cuts;
     }
 
+    // ******** Removing Requests randomly ********
+    for (int i = 0; i < num_of_cuts; ++i) {
+        randomRemove(q);
+    }
+/*
 // ******** Initializing and copying to a temp queue ********
 
     // temp queue to the rescue -- used to override global mutex lock and condition variables
@@ -311,25 +342,29 @@ void randomCuts(Queue* q, int precentage) {
     pthread_mutex_destroy(&temp_lock);
     pthread_cond_destroy(&temp_empty);
     pthread_cond_destroy(&temp_full);
-
+*/     // TODO delete me
 }
 
 void randomRemove(Queue *q) {
     int random_value = rand() % q->size;
+    Request* req = popIndex(q->element_list,random_value);
+    q->size--;
+    Close(req->fd);
+    free(req);
+
+    /*
     int old_size = q->size;
     int j = 0;
     while(j < random_value) {
         enqueue(q, dequeue(q));
         j++;
     }
-    Request* req = dequeue(q);
-    Close(req->fd);
-    free(req);
     j++;
     while(j < old_size) {
         enqueue(q, dequeue(q));
         j++;
     }
+     */    // TODO delete me
 }
 
 void stupidCopyQueue(Queue *dest, Queue *src) {
@@ -338,7 +373,7 @@ void stupidCopyQueue(Queue *dest, Queue *src) {
     dest->elements = src->elements;
     dest->head = src->head;
     dest->tail = src->tail;
-}
+}     // TODO delete me
 
 
 
@@ -395,8 +430,14 @@ _Noreturn void* handleRequests(void* thread_id /* NOTE: this will be used mainly
         // updating dispatch interval time (secs and usecs)
         struct timeval current_time;
         gettimeofday(&current_time,NULL);
-        req->stat_req_dispatch.tv_sec = current_time.tv_sec - req->stat_req_arrival.tv_sec;
-        req->stat_req_dispatch.tv_usec = current_time.tv_usec - req->stat_req_arrival.tv_usec;
+        req->stat_req_dispatch_interval.tv_sec = current_time.tv_sec - req->stat_req_arrival.tv_sec;
+        if( current_time.tv_usec < req->stat_req_arrival.tv_usec) {
+            req->stat_req_dispatch_interval.tv_usec = 1e6 + current_time.tv_usec - req->stat_req_arrival.tv_usec;
+            req->stat_req_dispatch_interval.tv_sec--;
+        }
+        else {
+        req->stat_req_dispatch_interval.tv_usec = current_time.tv_usec - req->stat_req_arrival.tv_usec;
+        }
 
         // incrementing active_request in a synchronized way
         pthread_mutex_lock(&global_lock);
@@ -476,7 +517,6 @@ int main(int argc, char *argv[])
         enqueue(requests_queue, req);
 
     }
-
 }
 
 

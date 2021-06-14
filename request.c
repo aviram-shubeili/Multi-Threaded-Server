@@ -26,41 +26,32 @@ void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longm
     Rio_writen(fd, buf, strlen(buf));
     printf("%s", buf);
 
+    sprintf(buf, "Content-Length: %lu\r\n", strlen(body));
+    Rio_writen(fd, buf, strlen(buf));
+    printf("%s", buf);
 // ************************************ Add Stats print ************************************
 // ************************************ Add Stats print ************************************
 // ************************************ Add Stats print ************************************
 
-
-    sprintf(buf, "Stat-Req-Arrival:: %lu.%06lu\r\n",thread_current_request[handling_thread_id]->stat_req_arrival.tv_sec
+    sprintf(buf, "Stat-Req-Arrival:: %lu.%06lu\r\n", thread_current_request[handling_thread_id]->stat_req_arrival.tv_sec
             ,thread_current_request[handling_thread_id]->stat_req_arrival.tv_usec);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
 
-    sprintf(buf, "Stat-Req-Dispatch:: %lu.%06lu\r\n",thread_current_request[handling_thread_id]->stat_req_dispatch.tv_sec
-            ,thread_current_request[handling_thread_id]->stat_req_dispatch.tv_usec);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Req-Dispatch:: %lu.%06lu\r\n",buf, thread_current_request[handling_thread_id]->stat_req_dispatch_interval.tv_sec
+            ,thread_current_request[handling_thread_id]->stat_req_dispatch_interval.tv_usec);
 
+    sprintf(buf, "%sStat-Thread-Id:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_id);
 
-    sprintf(buf, "Stat-Thread-Id:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_id);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_count);
 
-    sprintf(buf, "Stat-Thread-Count:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_count);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Static:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_static);
 
-    sprintf(buf, "Stat-Thread-Static:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_static);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n\n",buf, thread_statistics[handling_thread_id].stat_thread_dynamic);
 
-    sprintf(buf, "Stat-Thread-Dynamic:: %d\r\n\r\n",thread_statistics[handling_thread_id].stat_thread_dynamic);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
-
+    Rio_writen(fd, buf, strlen(buf));
+    printf("%s", buf);
 
     // Write out the content
     Rio_writen(fd, body, strlen(body));
@@ -141,53 +132,40 @@ void requestServeDynamic(int fd, char *filename, char *cgiargs, int handling_thr
     // The CGI script has to finish writing out the header.
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     sprintf(buf, "%sServer: OS-HW3 Web Server\r\n", buf);
-    Rio_writen(fd, buf, strlen(buf));
 
 // ************************************ Add Stats print ************************************
 // ************************************ Add Stats print ************************************
 // ************************************ Add Stats print ************************************
 
-
-    sprintf(buf, "Stat-Req-Arrival:: %lu.%06lu\r\n",thread_current_request[handling_thread_id]->stat_req_arrival.tv_sec
+    sprintf(buf, "%sStat-Req-Arrival:: %lu.%06lu\r\n",buf, thread_current_request[handling_thread_id]->stat_req_arrival.tv_sec
             ,thread_current_request[handling_thread_id]->stat_req_arrival.tv_usec);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
 
-    sprintf(buf, "Stat-Req-Dispatch:: %lu.%06lu\r\n",thread_current_request[handling_thread_id]->stat_req_dispatch.tv_sec
-            ,thread_current_request[handling_thread_id]->stat_req_dispatch.tv_usec);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Req-Dispatch:: %lu.%06lu\r\n",buf, thread_current_request[handling_thread_id]->stat_req_dispatch_interval.tv_sec
+            ,thread_current_request[handling_thread_id]->stat_req_dispatch_interval.tv_usec);
 
+    sprintf(buf, "%sStat-Thread-Id:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_id);
 
-    sprintf(buf, "Stat-Thread-Id:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_id);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_count);
 
-    sprintf(buf, "Stat-Thread-Count:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_count);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Static:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_static);
 
-    sprintf(buf, "Stat-Thread-Static:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_static);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n\n",buf, thread_statistics[handling_thread_id].stat_thread_dynamic);
 
-    sprintf(buf, "Stat-Thread-Dynamic:: %d\r\n\r\n",thread_statistics[handling_thread_id].stat_thread_dynamic);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
+    Rio_writen(fd, buf, strlen(buf));
+    printf("%s", buf);
 
-
-
-    if (Fork() == 0) {
+    pid_t p = Fork();
+    if (p == 0) {
         /* Child process */
         Setenv("QUERY_STRING", cgiargs, 1);
         /* When the CGI process writes to stdout, it will instead go to the socket */
         Dup2(fd, STDOUT_FILENO);
         Execve(filename, emptylist, environ);
     }
-    Wait(NULL);
+    Waitpid(p,NULL, 0);
 }
 
 
@@ -216,36 +194,25 @@ void requestServeStatic(int fd, char *filename, int filesize, int handling_threa
 // ************************************ Add Stats print ************************************
 // ************************************ Add Stats print ************************************
 
-
-    sprintf(buf, "Stat-Req-Arrival:: %lu.%06lu\r\n",thread_current_request[handling_thread_id]->stat_req_arrival.tv_sec
+    sprintf(buf, "%sStat-Req-Arrival:: %lu.%06lu\r\n",buf, thread_current_request[handling_thread_id]->stat_req_arrival.tv_sec
             ,thread_current_request[handling_thread_id]->stat_req_arrival.tv_usec);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
 
-    sprintf(buf, "Stat-Req-Dispatch:: %lu.%06lu\r\n",thread_current_request[handling_thread_id]->stat_req_dispatch.tv_sec
-            ,thread_current_request[handling_thread_id]->stat_req_dispatch.tv_usec);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Req-Dispatch:: %lu.%06lu\r\n",buf, thread_current_request[handling_thread_id]->stat_req_dispatch_interval.tv_sec
+            ,thread_current_request[handling_thread_id]->stat_req_dispatch_interval.tv_usec);
 
+    sprintf(buf, "%sStat-Thread-Id:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_id);
 
-    sprintf(buf, "Stat-Thread-Id:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_id);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_count);
 
-    sprintf(buf, "Stat-Thread-Count:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_count);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Static:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_static);
 
-    sprintf(buf, "Stat-Thread-Static:: %d\r\n",thread_statistics[handling_thread_id].stat_thread_static);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
+    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n\n",buf, thread_statistics[handling_thread_id].stat_thread_dynamic);
 
-    sprintf(buf, "Stat-Thread-Dynamic:: %d\r\n\r\n",thread_statistics[handling_thread_id].stat_thread_dynamic);
-    Rio_writen(fd, buf, strlen(buf));
-    printf("%s", buf);
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
+    Rio_writen(fd, buf, strlen(buf));
+    printf("%s", buf);
 
 
     //  Writes out to the client socket the memory-mapped file
@@ -290,7 +257,6 @@ void requestHandle(int fd, int handling_thread_id)
         if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) {
             requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not read this file", handling_thread_id);
             // Updating thread Stats
-            thread_statistics[handling_thread_id].stat_thread_static++;
             thread_statistics[handling_thread_id].stat_thread_count++;
             return;
         }
@@ -302,7 +268,6 @@ void requestHandle(int fd, int handling_thread_id)
         if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
             requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not run this CGI program", handling_thread_id);
             // Updating thread Stats
-            thread_statistics[handling_thread_id].stat_thread_dynamic++;
             thread_statistics[handling_thread_id].stat_thread_count++;
             return;
         }

@@ -22,7 +22,7 @@ ThreadStats* thread_statistics;
 typedef struct Request {
     int fd;
     struct timeval stat_req_arrival ;
-    struct timeval stat_req_dispatch;
+    struct timeval stat_req_dispatch_interval;
 } Request;
 
 Request** thread_current_request; // An array of ptrs
