@@ -14,11 +14,101 @@ Request* initRequest(int fd) {
     gettimeofday(&r->stat_req_arrival, NULL);
     return r;
 }
+/*
+ * ***********************************
+ *          List implementation
+ * ***********************************
+ */
+typedef struct Node{
+    Request* data;
+    struct Node* next;
+    struct Node* prev;
+}Node;
+
+typedef struct List{
+    Node* head;
+    Node* tail;
+} List;
+
+List *initList();
+Request *popHead(List* list);
+Request *popTail(List* list); // TODO needed?
+Request *popIndex(List* list, int index);
+void addNode(List* list, Request* req);
+void destroyList();
+
+List *initList(){
+    List* list = malloc(sizeof(List));
+    list->head = NULL;
+    list->tail = NULL;
+    return list;
+}
+
+Request *popHead(List* list){ //TODO when do we kill the head?
+    Node *head = list->head;
+    if (!head) { return NULL; }
+    else if (head == list->tail){
+        Request* req = head->data;
+        list->head = NULL;
+        list->tail = NULL;
+        free(head); //TODO needed here?
+        return req;
+    }
+    else{
+        Request* req = head->data;
+        list->head = head->next;
+        free(head); //TODO needed here?
+        return req;
+    }
+}
+
+Request *popIndex(List* list, int index){
+    Node* node = list->head;
+    while (node){
+        node = node->next;
+        index--;
+        if (!index){
+            Request* req = node->data;
+            if (node->prev) { node->prev->next = node->next; }
+            if (node->next) { node->next->prev = node->prev; }
+            free (node); //TODO needed here?
+            return req;
+        }
+    }
+    return NULL; //will happen only if index > queue size. should be handled by the caller
+}
+
+void addNode(List* list, Request* req){
+    Node* node = malloc(sizeof(Node));
+    node->data = req;
+
+    if (!list->head){
+        list->head = node;
+        list->tail = node;
+        node->prev = NULL;
+        node->next = NULL;
+    }
+
+    else if (list->head == list->tail){
+        node->prev = list->head;
+        node->next = NULL;
+        list->tail = node;
+        list->head->next = node;
+    }
+
+    else{
+        list->tail->next = node;
+        node->prev = list->tail;
+        node->next = NULL;
+        list->tail = node;
+    }
+}
+
 
 
 /*
  * ***********************************
- *          Queue implementaion
+ *          Queue implementation
  * ***********************************
  */
 typedef struct Queue {
@@ -72,7 +162,7 @@ Queue *initQueue(int capacity, pthread_cond_t *empty, pthread_cond_t *full, pthr
     q->capacity = capacity;
     q->size = 0;
     q->head = 0;    // this field will be updated cyclic in dequeue.
-    q-> tail = capacity-1; // this field will be updated cyclic in enqueue.
+    q->tail = capacity-1; // this field will be updated cyclic in enqueue.
 
     // allocating the pointers array
     q->elements = malloc(capacity * sizeof(Request*));
