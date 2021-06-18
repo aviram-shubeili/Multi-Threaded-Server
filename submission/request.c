@@ -17,6 +17,7 @@ void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longm
     sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
     sprintf(body, "%s<hr>OS-HW3 Web Server\r\n", body);
 
+
     // Write out the header information for this response
     sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
     Rio_writen(fd, buf, strlen(buf));
@@ -41,7 +42,7 @@ void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longm
 
     sprintf(buf, "%sStat-Thread-Id:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_id);
 
-    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_count);
+    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, ++thread_statistics[handling_thread_id].stat_thread_count);
 
     sprintf(buf, "%sStat-Thread-Static:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_static);
 
@@ -145,11 +146,11 @@ void requestServeDynamic(int fd, char *filename, char *cgiargs, int handling_thr
 
     sprintf(buf, "%sStat-Thread-Id:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_id);
 
-    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_count);
+    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, ++thread_statistics[handling_thread_id].stat_thread_count);
 
     sprintf(buf, "%sStat-Thread-Static:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_static);
 
-    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n\n",buf, thread_statistics[handling_thread_id].stat_thread_dynamic);
+    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n\n",buf, ++thread_statistics[handling_thread_id].stat_thread_dynamic);
 
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
@@ -186,9 +187,7 @@ void requestServeStatic(int fd, char *filename, int filesize, int handling_threa
     // put together response
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     sprintf(buf, "%sServer: OS-HW3 Web Server\r\n", buf);
-    sprintf(buf, "%sContent-Length: %d\r\n", buf, filesize);
-    sprintf(buf, "%sContent-Type: %s\r\n", buf, filetype);
-    Rio_writen(fd, buf, strlen(buf));
+//    Rio_writen(fd, buf, strlen(buf));
 
 // ************************************ Add Stats print ************************************
 // ************************************ Add Stats print ************************************
@@ -202,12 +201,13 @@ void requestServeStatic(int fd, char *filename, int filesize, int handling_threa
 
     sprintf(buf, "%sStat-Thread-Id:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_id);
 
-    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_count);
+    sprintf(buf, "%sStat-Thread-Count:: %d\r\n",buf, ++thread_statistics[handling_thread_id].stat_thread_count);
 
-    sprintf(buf, "%sStat-Thread-Static:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_static);
+    sprintf(buf, "%sStat-Thread-Static:: %d\r\n",buf, ++thread_statistics[handling_thread_id].stat_thread_static);
 
-    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n\n",buf, thread_statistics[handling_thread_id].stat_thread_dynamic);
-
+    sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n",buf, thread_statistics[handling_thread_id].stat_thread_dynamic);
+    sprintf(buf, "%sContent-Length: %d\r\n", buf, filesize);
+    sprintf(buf, "%sContent-Type: %s\r\n\r\n\ns", buf, filetype);
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
 // ************************************ End of Stats print ************************************
@@ -240,7 +240,6 @@ void requestHandle(int fd, int handling_thread_id)
     if (strcasecmp(method, "GET")) {
         requestError(fd, method, "501", "Not Implemented", "OS-HW3 Server does not implement this method", 0);
         // Updating thread Stats
-        thread_statistics[handling_thread_id].stat_thread_count++;
         return;
     }
     requestReadhdrs(&rio);
@@ -249,7 +248,6 @@ void requestHandle(int fd, int handling_thread_id)
     if (stat(filename, &sbuf) < 0) {
         requestError(fd, filename, "404", "Not found", "OS-HW3 Server could not find this file", handling_thread_id);
         // Updating thread Stats
-        thread_statistics[handling_thread_id].stat_thread_count++;
         return;
     }
 
@@ -257,24 +255,18 @@ void requestHandle(int fd, int handling_thread_id)
         if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) {
             requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not read this file", handling_thread_id);
             // Updating thread Stats
-            thread_statistics[handling_thread_id].stat_thread_count++;
             return;
         }
         requestServeStatic(fd, filename, sbuf.st_size, handling_thread_id);
         // Updating thread Stats
-        thread_statistics[handling_thread_id].stat_thread_static++;
-        thread_statistics[handling_thread_id].stat_thread_count++;
     } else {
         if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
             requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not run this CGI program", handling_thread_id);
             // Updating thread Stats
-            thread_statistics[handling_thread_id].stat_thread_count++;
             return;
         }
         requestServeDynamic(fd, filename, cgiargs, handling_thread_id);
         // Updating thread Stats
-        thread_statistics[handling_thread_id].stat_thread_dynamic++;
-        thread_statistics[handling_thread_id].stat_thread_count++;
     }
 }
 

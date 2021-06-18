@@ -11,16 +11,6 @@
 //
 
 
-//TODO:  Notes from Bar's Reception hour
-/*
- * one list for threads waiting
- * one list for threads executing
- * one array for structs of statistics per thread (size of num_of_threads)
- * producer - consumer queue in google!!!
- *
- *
- */
-
 double spinfor = 5.0;
 
 void getargs()

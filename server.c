@@ -32,7 +32,7 @@ typedef struct List{
 
 List *initList();
 Request *popHead(List* list);
-Request *popTail(List* list); // TODO needed?
+Request *popTail(List* list);
 Request *popIndex(List* list, int index);
 void addNodeToTail(List* list, Request* req);
 void destroyList();
@@ -44,7 +44,7 @@ List *initList(){
     return list;
 }
 
-Request *popHead(List* list){ //TODO when do we kill the node?
+Request *popHead(List* list){
     Node *node = list->head;
     // empty list
     if (!node) { return NULL; }
@@ -53,14 +53,14 @@ Request *popHead(List* list){ //TODO when do we kill the node?
         Request* req = node->data;
         list->head = NULL;
         list->tail = NULL;
-        free(node); //TODO needed here??
+        free(node);
         return req;
     }
     else{
         Request* req = node->data;
         list->head = node->next;
         list->head->prev = NULL;
-        free(node); //TODO needed here?
+        free(node);
         return req;
     }
 }
@@ -82,7 +82,7 @@ Request *popIndex(List* list, int index){
             if (node->next) { node->next->prev = node->prev; }
             else { list->tail = node->prev; }
 
-            free (node); //TODO needed here?
+            free (node);
             return req;
         }
         node = node->next;
@@ -130,10 +130,7 @@ void addNodeToTail(List* list, Request* req){
 typedef struct Queue {
     int capacity;
     int size;
-    int head;    // TODO delete me
-    int tail;    // TODO delete me
     List* element_list;
-    Request** elements; // array of ptrs    // TODO delete me
     pthread_mutex_t* m;
     pthread_cond_t* empty;
     pthread_cond_t* full;
@@ -147,7 +144,6 @@ Request* dequeue(Queue* q);
 void enqueue(Queue* q, Request* precentage);
 void destroyQueue(Queue* q);
 void randomCuts(Queue* q, int precentage);
-void stupidCopyQueue(Queue *dest, Queue *src);
 void randomRemove(Queue *q);
 
 
@@ -157,10 +153,6 @@ pthread_cond_t empty_g, full_g;
 pthread_mutex_t global_lock;
 Queue* requests_queue;
 int active_requests = 0;
-
-// TODO this is for debugging
-int request_index = 0;
-
 
 
 int isFull(Queue* q) {
@@ -185,15 +177,6 @@ Queue *initQueue(int capacity, pthread_cond_t *empty, pthread_cond_t *full, pthr
 
     q->capacity = capacity;
     q->size = 0;
-    q->head = 0;    // this field will be updated cyclic in dequeue.    // TODO delete me
-    q->tail = capacity-1; // this field will be updated cyclic in enqueue.    // TODO delete me
-
-    // allocating the pointers array // TODO delete me
-    q->elements = malloc(capacity * sizeof(Request*));
-    if(q->elements == NULL) {
-        unix_error("Malloc error");
-    }
-
     q->m = m;
     q->empty = empty;
     q->full = full;
@@ -208,12 +191,7 @@ Request* dequeue(Queue* q) {
     }
 
     // removing from head of queue
-    // Request* element = q->elements[q->head];     // TODO delete me
     Request* element = popHead(q->element_list);
-/*
-    q->elements[q->head] = NULL;
-    q->head = (q->head + 1) % q->capacity;
-    */     // TODO delete me
     q->size--;
     pthread_cond_signal(q->full);
     pthread_mutex_unlock(q->m);
@@ -231,33 +209,28 @@ void enqueue(Queue* q, Request* element) {
         }
         else if (q->overload_policy == SCHED_ALG_DROP_TAIL) {
             Close(element->fd);
-            free(element); // TODO: should i?
+            free(element);
             pthread_mutex_unlock(q->m);
             return;
         }
         else if(q->overload_policy == SCHED_ALG_DROP_HEAD) {
             if(isEmpty(q)) { // all requests are active --> drop new request (piazza @450)
                 Close(element->fd);
-                free(element); // TODO: should i?
+                free(element);
                 pthread_mutex_unlock(q->m);
                 return;
             }
             else { // drop head and continue with current request
-//                Request* oldest_request = q->elements[q->head];     // TODO delete me
-                /*
-                q->elements[q->head] = NULL;
-                q->head = (q->head + 1) % q->capacity;
-                 */     // TODO delete me
                 Request* oldest_request = popHead(q->element_list);
                 q->size--;
                 Close(oldest_request->fd);
-                free(oldest_request); // TODO should i?
+                free(oldest_request);
             }
         }
         else if(q->overload_policy == SCHED_ALG_RANDOM) {
             if(isEmpty(q)) { // all requests are active --> drop new request (piazza @398)
                 Close(element->fd);
-                free(element); // TODO: should i?
+                free(element);
                 pthread_mutex_unlock(q->m);
                 return;
             }
@@ -283,11 +256,7 @@ void enqueue(Queue* q, Request* element) {
 }
 
 
-// this is never used TODO: Maybe add aa SIGINT handler ?
-void destroyQueue(Queue* q) {
-//    free(q->elements); TODO delete me and maybe free element_list?
-    free(q);
-}
+
 
 
 void randomCuts(Queue* q, int precentage) {
@@ -304,45 +273,6 @@ void randomCuts(Queue* q, int precentage) {
     for (int i = 0; i < num_of_cuts; ++i) {
         randomRemove(q);
     }
-/*
-// ******** Initializing and copying to a temp queue ********
-
-    // temp queue to the rescue -- used to override global mutex lock and condition variables
-    pthread_cond_t temp_empty;
-    pthread_cond_t temp_full;
-    pthread_mutex_t temp_lock;
-    pthread_cond_init( &temp_empty, NULL);
-    pthread_cond_init( &temp_full, NULL);
-    int mutex_res = pthread_mutex_init(&temp_lock, NULL);
-    if(mutex_res != 0) {
-        unix_error("Mutex error");
-    }
-    Queue* temp_q = initQueue(q->capacity, &temp_empty, &temp_full, &temp_lock, q->overload_policy);
-    // backing this up so i can free it later
-    Request** temp_elements = temp_q->elements;
-    // This doesnt do anything smart
-    stupidCopyQueue(temp_q, q);
-
-
-// ******** Removing Requests ********
-
-    for (int i = 0; i < num_of_cuts; ++i) {
-        randomRemove(temp_q);
-    }
-
-    // copy back to the original queue
-    stupidCopyQueue(q, temp_q);
-
-// ******** destroy temp queue ********
-
-    temp_q->elements = temp_elements;
-    destroyQueue(temp_q);
-
-    // destroyed the queue so no one is stuck on those
-    pthread_mutex_destroy(&temp_lock);
-    pthread_cond_destroy(&temp_empty);
-    pthread_cond_destroy(&temp_full);
-*/     // TODO delete me
 }
 
 void randomRemove(Queue *q) {
@@ -351,29 +281,7 @@ void randomRemove(Queue *q) {
     q->size--;
     Close(req->fd);
     free(req);
-
-    /*
-    int old_size = q->size;
-    int j = 0;
-    while(j < random_value) {
-        enqueue(q, dequeue(q));
-        j++;
-    }
-    j++;
-    while(j < old_size) {
-        enqueue(q, dequeue(q));
-        j++;
-    }
-     */    // TODO delete me
 }
-
-void stupidCopyQueue(Queue *dest, Queue *src) {
-    dest->capacity = src->capacity;
-    dest->size = src->size;
-    dest->elements = src->elements;
-    dest->head = src->head;
-    dest->tail = src->tail;
-}     // TODO delete me
 
 
 
@@ -416,8 +324,8 @@ void getargs(int argc, char *argv[], int *port, int *num_of_threads, int *queue_
     }
 }
 
-// TODO delete _Noreturn
-_Noreturn void* handleRequests(void* thread_id /* NOTE: this will be used mainly for section C when we want to gather thread statistics */) {
+
+void* handleRequests(void* thread_id /* NOTE: this will be used mainly for section C when we want to gather thread statistics */) {
 
     // this is to make sure another thread isnt touching my thread_id value
     int my_thread_id = *(int*)thread_id;
@@ -447,7 +355,7 @@ _Noreturn void* handleRequests(void* thread_id /* NOTE: this will be used mainly
         requestHandle(req->fd, my_thread_id);
 
         Close(req->fd);
-        free(req); // TODO Should i?
+        free(req);
         thread_current_request[my_thread_id] = NULL;
 
         // decrementing active_request in a synchronized way
@@ -504,9 +412,6 @@ int main(int argc, char *argv[])
     while (1) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *) &clientlen);
-
-//        // TODO this is for debugging
-//        request_index++;
 
         //
         // HW3: In general, don't handle the request in the main thread.

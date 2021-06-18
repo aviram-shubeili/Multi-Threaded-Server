@@ -8,18 +8,7 @@
 // This program is intended to help you test your web server.
 // You can use it to test that you are correctly having multiple threads
 // handling http requests.
-//
 
-
-//TODO:  Notes from Bar's Reception hour
-/*
- * one list for threads waiting
- * one list for threads executing
- * one array for structs of statistics per thread (size of num_of_threads)
- * producer - consumer queue in google!!!
- *
- *
- */
 
 double spinfor = 5.0;
 
